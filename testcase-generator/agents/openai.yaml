@@ -1,0 +1,4 @@
+interface:
+  display_name: "测试用例生成"
+  short_description: "按需求文档拆分模块并生成可交付的测试用例与 Excel 总表"
+  default_prompt: "Use $testcase-generator to analyze the requirement document, generate module-based test cases, and export an .xlsx deliverable."
