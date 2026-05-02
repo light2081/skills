@@ -1,6 +1,6 @@
 ---
 name: jmeter-generator
-description: 根据 HTTP 接口文档自动生成 JMeter 压测脚本（.jmx 格式）。支持自然语言描述、cURL 命令、Swagger 片段、Markdown 文件（.md）和 Word 文档（.docx）作为输入。当用户提到生成 JMeter 脚本、压测脚本、生成 jmx、接口性能测试、负载测试、或提供接口文档需要生成测试脚本时，主动使用此技能，即使用户没有明确说"JMeter"也要触发。
+description: 根据 HTTP 接口文档自动生成 JMeter 压测脚本（.jmx 格式）。支持自然语言描述、cURL 命令、HTTP 报文、Swagger/OpenAPI 片段、Markdown 文件（.md）和 Word 文档（.docx）作为输入。当用户提到以下任意场景时主动触发：生成 JMeter 脚本、生成压测脚本、生成 jmx、接口性能测试、负载测试、并发测试、压力测试、需要生成测试脚本，即使用户没有明确说"JMeter"也要触发。
 ---
 
 # jmeter-generator
@@ -11,7 +11,9 @@ description: 根据 HTTP 接口文档自动生成 JMeter 压测脚本（.jmx 格
 
 用户输入包含以下任意关键词时触发本 Skill：
 - "生成 jmx"、"生成 jmeter 脚本"、"生成压测脚本"
+- "接口性能测试"、"负载测试"、"并发测试"、"压力测试"
 - "jmeter script"、"jmx script"
+- 提供接口文档并需要生成测试脚本
 - 直接调用 `/jmeter-generator`
 
 ---
@@ -21,6 +23,21 @@ description: 根据 HTTP 接口文档自动生成 JMeter 压测脚本（.jmx 格
 ### 第零步：环境依赖检查
 
 **仅当用户输入包含 `.docx` 文件路径时，才需执行此步骤。其他输入格式可直接跳至第一步。**
+
+#### 检测 Python 是否存在
+
+使用 Bash 工具执行：
+
+```bash
+python --version 2>&1
+```
+
+- **输出包含版本号**（如 `Python 3.x.x`）：Python 可用，继续检测依赖。
+- **输出包含 `not found` 或命令不存在**：告知用户：
+
+  > 未检测到 Python 环境。请先安装 Python 3.x（https://www.python.org/downloads/），安装后重新执行本命令。
+
+  **终止当前流程，不再继续。**
 
 #### 检测 python-docx
 
@@ -66,6 +83,13 @@ python -c "import docx; print('ok')" 2>&1
 - **Markdown 文件**：用户提供 `.md` 文件路径时，使用 Read 工具读取文件内容后按上述规则解析
 - **Word 文档**：用户提供 `.docx` 文件路径时，使用 Bash 工具调用 python-docx 提取文本后解析
 
+**解析时同步提取以下所有字段**（包括性能参数，避免第三步重复询问）：
+```
+host, port, protocol, path, method,
+headers[], params[], body, content_type,
+num_threads（线程数/并发数）, ramp_up（Ramp-up秒）, loop_count（循环次数）
+```
+
 #### 文件输入处理规则
 
 1. **识别文件路径**：若用户消息中包含以 `.md` 或 `.docx` 结尾的路径（绝对路径或相对路径均可），视为文件输入。
@@ -94,11 +118,7 @@ for t in doc.tables:
 4. **解析失败处理**：若文件内容无法提取到任何接口信息，告知用户"未能从文件中识别出接口信息"，并请用户补充说明或直接粘贴关键片段。
 5. **Word 文件读取失败处理**：若 python-docx 执行出错（如文件损坏、加密保护等），提示用户将文档另存为 `.md` 或直接粘贴接口文本。
 
-解析时提取以下字段：
-```
-host, port, protocol, path, method,
-headers[], params[], body, content_type
-```
+解析时提取以下字段：（已移至上方，见"同步提取"说明）
 
 ---
 
@@ -110,6 +130,8 @@ headers[], params[], body, content_type
 > 1. [METHOD] [path] — [简短描述]
 > 2. [METHOD] [path] — [简短描述]
 > ...
+>
+> ⚠️ **若上述接口属于不同的域名/IP**，请注意：选 A 或 C 方案时，每个接口将保留各自独立的 Host 配置。
 >
 > 请问这些接口如何处理？
 > - **A. 合并到一个 Test Plan**（同一线程组，按顺序执行）
@@ -132,7 +154,7 @@ headers[], params[], body, content_type
 
 **若有多个必填项同时缺失，合并为一次提问，列出所有缺失字段。**
 
-**选填项缺失时，列出默认值，询问是否调整（一次性批量）：**
+**选填项缺失时，列出默认值，询问是否调整（一次性批量）。已在第一步中提取到的性能参数（如用户已提供"50个并发"、"循环10次"等）直接使用，无需再次询问：**
 
 > 以下配置将使用默认值，如需修改请告知：
 > - 协议：`https`
@@ -143,6 +165,10 @@ headers[], params[], body, content_type
 > - 响应断言（HTTP 状态码）：`200`
 > - 测试计划名称：`[接口路径末段]-test`
 > - 输出文件名：`[测试计划名称].jmx`
+>
+> 是否需要从 **CSV 文件**读取参数？（适用于批量加载不同用户名/密码、订单 ID 等测试数据）
+> - **是**：请告知 CSV 文件路径及字段名，将在脚本中插入 CSV Data Set Config 组件
+> - **否**：跳过，使用固定参数值
 
 ---
 
@@ -262,6 +288,45 @@ headers[], params[], body, content_type
           <stringProp name="filename"></stringProp>
         </ResultCollector>
         <hashTree/>
+
+        <!-- 聚合报告（分析 TPS、响应时间分位数等关键性能指标） -->
+        <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename"></stringProp>
+        </ResultCollector>
+        <hashTree/>
       </hashTree>
     </hashTree>
   </hashTree>
@@ -293,7 +358,9 @@ headers[], params[], body, content_type
 </hashTree>
 ```
 
-#### 子模板：POST/PUT/PATCH JSON Body 采样器
+#### 子模板：POST/PUT/PATCH/DELETE JSON Body 采样器
+
+> **适用范围**：`POST`、`PUT`、`PATCH`、`DELETE`（带请求体时）均使用此模板，将 `${METHOD}` 替换为对应方法名即可。`DELETE` 无请求体时参考 GET 模板并将 method 改为 `DELETE`。
 
 ```xml
 <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="${SAMPLER_NAME}" enabled="true">
@@ -386,7 +453,7 @@ headers[], params[], body, content_type
 
 ```xml
 <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion" enabled="true">
-  <collectionProp name="Asserion.test_strings">
+  <collectionProp name="Assertion.test_strings">
     <stringProp name="49586">${EXPECTED_STATUS_CODE}</stringProp>
   </collectionProp>
   <stringProp name="Assertion.custom_message"></stringProp>
@@ -396,6 +463,8 @@ headers[], params[], body, content_type
 </ResponseAssertion>
 <hashTree/>
 ```
+
+> **注意**：`${ASSERTION}` 占位符在有断言时替换为上述 XML；若不需要断言，采样器的 `<hashTree>` 块须写为 `<hashTree/>` 空标签，不可省略，否则 JMeter XML 结构不合法。
 
 ---
 
@@ -442,6 +511,8 @@ except ET.ParseError as e:
 > **使用方式：**
 > - GUI：JMeter → File → Open 导入此文件
 > - 命令行：`jmeter -n -t [filename].jmx -l result.jtl`
+>
+> ℹ️ *Windows 用户若在命令行中使用反斜杠路径，请将文件名替换为实际路径，建议使用正斜杠 `/` 或将路径用引号括起。*
 
 ---
 
