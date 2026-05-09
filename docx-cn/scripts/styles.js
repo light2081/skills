@@ -159,6 +159,10 @@ const PARAGRAPH_STYLES = [
     run: { size: SIZE.h8, bold: true, font: FONT },
     paragraph: { spacing: { before: 100, after: 75 },
       indent: { left: 1418, firstLine: 0, firstLineChars: 0 }, outlineLevel: 7 } },
+  // 标准表格：表格内段落样式，无首行缩进，12pt 宋体/Times New Roman
+  { id: "ac", name: "标准表格", basedOn: "Normal", next: "Normal", quickFormat: true,
+    run: { size: SIZE.body, font: FONT },
+    paragraph: { indent: { firstLine: 0, firstLineChars: 0 } } },
   { id: "FigureCaption", name: "Figure Caption", basedOn: "Normal", next: "Normal",
     run: { size: SIZE.caption, bold: true, font: FONT, color: COLOR.black },
     paragraph: { alignment: AlignmentType.CENTER,

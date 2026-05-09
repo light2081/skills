@@ -290,12 +290,22 @@ const { ShadingType } = require("docx");
 //   普通单元格 → 不设置 shading（无填充）
 //   表头行 → shading: { fill: COLOR.tableHeader, type: ShadingType.CLEAR }
 //   代码背景 → shading: { fill: COLOR.codeBg,      type: ShadingType.CLEAR }
-// 表格内文字段落：无首行缩进，行距继承文档默认（1.5倍）
+
+// MANDATORY: 表格内所有文字段落必须使用 "标准表格" 样式（style: "ac"）
+// 禁止在表格单元格内使用普通 Paragraph（会继承文档默认的首行缩进）
+new TableCell({
+  children: [new Paragraph({
+    style: "ac",  // 标准表格样式：无首行缩进，12pt 宋体/Times New Roman
+    children: [new TextRun({ text: "单元格内容" })],
+  })]
+})
 ```
 
 ### Tables
 
 **CRITICAL: Tables need dual widths** - set both `columnWidths` on the table AND `width` on each cell. Without both, tables render incorrectly on some platforms.
+
+**CRITICAL: Use `style: "ac"` (标准表格) for ALL paragraphs inside table cells.** Do NOT use plain `Paragraph` without `style: "ac"` — the document default applies a 2-character first-line indent that looks wrong in tables.
 
 ```javascript
 // CRITICAL: Always set table width for consistent rendering
@@ -314,7 +324,7 @@ new Table({
           width: { size: 4680, type: WidthType.DXA }, // Also set on each cell
           shading: { fill: "D5E8F0", type: ShadingType.CLEAR }, // CLEAR not SOLID
           margins: { top: 80, bottom: 80, left: 120, right: 120 }, // Cell padding (internal, not added to width)
-          children: [new Paragraph({ children: [new TextRun("Cell")] })]
+          children: [new Paragraph({ style: "ac", children: [new TextRun("Cell")] })]
         })
       ]
     })
@@ -498,6 +508,7 @@ sections: [{
 
 ### Critical Rules for docx-js
 
+- **Table cell paragraphs must use `style: "ac"`** - always set `style: "ac"` (标准表格) on every `Paragraph` inside a `TableCell`; without it, the document default first-line indent applies
 - **Set page size explicitly** - docx-js defaults to A4; use US Letter (12240 x 15840 DXA) for US documents
 - **Landscape: pass portrait dimensions** - docx-js swaps width/height internally; pass short edge as `width`, long edge as `height`, and set `orientation: PageOrientation.LANDSCAPE`
 - **Never use `\n`** - use separate Paragraph elements
