@@ -1,2 +1,7 @@
 /*.zip
 模板/
+**/__pycache__/
+.codeartsdoer/
+.claude/
+.idea/
+.vscode/
