@@ -19,6 +19,26 @@
 3. 按模块展示测试用例表格
 4. 最后给出总数统计
 
+## 模块级工作计划
+
+生成用例前必须先保存或展示模块级工作计划。计划用于分发子 agent、串行回退和最终校验。
+
+推荐结构：
+
+```json
+[
+  {
+    "module": "订单提交",
+    "source": "modules/order_submit.txt",
+    "functions": ["商品校验", "库存校验", "价格计算", "提交订单"],
+    "dependencies": ["购物车", "库存", "优惠券"],
+    "methods": ["等价类", "边界值", "判定表", "错误猜测"],
+    "output": "modules/order_submit.json",
+    "parallel": true
+  }
+]
+```
+
 ## JSON
 
 推荐使用扁平数组，键名与 Excel 列头一致，仅作为中间格式，例如：
@@ -41,6 +61,16 @@
   }
 ]
 ```
+
+模块级 JSON 文件仍使用同一扁平数组格式。数组中每条用例的 `功能模块` 必须与模块计划中的 `module` 一致，避免一个模块文件混入其他模块用例。`用例编号` 默认使用模块前缀，合并前必须保证全局唯一，避免并行生成后出现重复编号。
+
+合并前应检查：
+
+- JSON 可以正常解析
+- 顶层结构是数组
+- 每条用例包含固定列头字段
+- `用例编号` 不为空且全局唯一
+- 同一模块文件没有混入其他模块名称
 
 ## Excel
 
@@ -70,7 +100,10 @@ python "<skill_dir>/scripts/merge_cases.py" "<modules_dir>" "<output_dir>/all_ca
 
 推荐标准收口流程：
 
-1. 各模块分别生成 `*.json`
-2. 合并为 `all_cases.json`
-3. 基于 `all_cases.json` 导出最终 `output.xlsx`
-4. 向用户返回 `output.xlsx` 的绝对路径
+1. 输出模块识别结果
+2. 输出模块级工作计划
+3. 各模块分别生成 `*.json`
+4. 校验模块 JSON，失败模块按计划串行重生成
+5. 合并为 `all_cases.json`
+6. 基于 `all_cases.json` 导出最终 `output.xlsx`
+7. 向用户返回 `output.xlsx` 的绝对路径和用例总数
